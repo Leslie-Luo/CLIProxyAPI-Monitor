@@ -14,14 +14,14 @@
 
 	- CLIPROXY_SECRET_KEY (即登录后台管理界面的管理密钥)
 	- CLIPROXY_API_BASE_URL (即自部署的 CLIProxyAPI 根地址)
-	- DATABASE_URL (仅支持 Postgres)
+	- DATABASE_URL (仅支持 Postgres，可直接使用 Vercel Neon)
 	- PASSWORD (可选，默认使用 CLIPROXY_SECRET_KEY，访问密码，同时用于调用 `/api/sync` 的 Bearer)
 	- CRON_SECRET (若要使用 Vercel Cron 则需填，任意字符串即可，建议大于 16 位)
 
 3. 部署后，可通过以下方式自动同步上游使用数据：
 
-	- Vercel Cron（Pro 可设每小时，Hobby 每天同步一次）：调用 GET `/api/sync` 并带 `Authorization: Bearer PASSWORD`（可将 CRON_SECRET 设为与 PASSWORD 相同，Vercel 会自动附带 Authorization）
-	- Cloudflare Worker / 其他定时器定期请求同步：可见 `cf-worker-sync.js`
+	- Vercel Cron（Pro 可设每小时，Hobby 每天同步一次）：调用 GET `/api/sync` 并携带 `Authorization`
+	- Cloudflare Worker / 其他定时器定期请求同步：可见 [cf-worker-sync.js](https://github.com/sxjeru/CLIProxyAPI-Monitor/blob/main/cf-worker-sync.js)
 
 ## 预览
 
