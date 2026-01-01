@@ -1119,6 +1119,25 @@ export default function ExplorePage() {
     });
   }, [showStackedArea, stackedAreaData, stackedMaxSum, activeDomain, models]);
 
+  // 性能优化：只渲染可视范围内的散点
+  const visiblePoints = useMemo(() => {
+    if (!activeDomain) return filteredPoints;
+    const [xMin, xMax] = activeDomain.x;
+    const [yMin, yMax] = activeDomain.y;
+    return filteredPoints.filter(p => 
+      p.ts >= xMin && p.ts <= xMax && p.tokens >= yMin && p.tokens <= yMax
+    );
+  }, [filteredPoints, activeDomain]);
+
+  // 性能优化：只渲染可视范围内的堆叠面积数据
+  const visibleStackedData = useMemo(() => {
+    if (!activeDomain) return normalizedStackedData;
+    const [xMin, xMax] = activeDomain.x;
+    return normalizedStackedData.filter(d => 
+      d.ts >= xMin && d.ts <= xMax
+    );
+  }, [normalizedStackedData, activeDomain]);
+
   // 基于模型在列表中的索引分配颜色，避免哈希碰撞
   const modelColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1236,7 +1255,7 @@ export default function ExplorePage() {
           </div>
           <div>
             <span className="text-slate-400">渲染点数：</span>
-            <span>{formatNumberWithCommas(data?.returned ?? 0)}</span>
+            <span>{formatNumberWithCommas(visiblePoints.length)}</span>
           </div>
           {zoomDomain && dataBounds && (() => {
             const totalXRange = dataBounds.x[1] - dataBounds.x[0];
@@ -1361,7 +1380,7 @@ export default function ExplorePage() {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart 
                   margin={{ ...CHART_MARGIN, top: CHART_MARGIN.top + CHART_TOP_INSET }}
-                  data={normalizedStackedData}
+                  data={visibleStackedData}
                   onMouseLeave={clearHover}
                 >
                     <XAxis
@@ -1435,7 +1454,7 @@ export default function ExplorePage() {
                   />
                   <Scatter 
                     yAxisId="left" 
-                    data={filteredPoints} 
+                    data={visiblePoints} 
                     shape={dotShape} 
                     isAnimationActive={false}
                     onMouseEnter={(entry: any, _index: number, e: React.MouseEvent) => {
