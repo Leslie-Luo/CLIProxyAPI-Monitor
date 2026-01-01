@@ -945,7 +945,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <div className="mt-4 flex-1 flex gap-4 min-h-64">
+          <div className="mt-4 flex gap-4 h-[300px]">
             {loadingOverview ? (
               <Skeleton className="h-full w-full rounded-xl" />
             ) : showEmpty || !overviewData || overviewData.models.length === 0 ? (

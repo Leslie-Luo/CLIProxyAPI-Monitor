@@ -32,10 +32,10 @@ const MODEL_COLORS = [
   "#8df48dff", // 6 绿 (120°)
   "#72afffff", // 9 蓝 (220°)
   "#a582ff", // 11 紫 (270°)
+  "#99e6ff", // 19 浅蓝 (200°+)
   "#ff76d1ff", // 13 品红 (320°)
   "#ffb3b3", // 15 浅红 (0°+)
   "#fff899", // 17 浅黄 (60°+)
-  "#99e6ff", // 19 浅蓝 (200°+)
   "#ff8c42", // 2 橙红 (20°)
   "#ffe66d", // 4 黄 (60°)
   "#42c9f5", // 8 天青 (195°)
@@ -112,6 +112,65 @@ function computeNiceTicks([min, max]: [number, number], maxTickCount = 6): numbe
   if (gapToMax > step * 0.15) {
     ticks.push(Number(max.toFixed(6)));
   }
+  return ticks;
+}
+
+// 时间轴刻度计算：确保始终包含起始和结束时间
+function computeTimeTicks([min, max]: [number, number], maxTickCount = 8): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || maxTickCount <= 0) return [];
+  if (min === max) return [min];
+  
+  const range = max - min;
+  const roughStep = range / Math.max(1, maxTickCount - 1);
+  
+  // 时间步长候选值（毫秒）
+  const timeSteps = [
+    1000,           // 1秒
+    2000,           // 2秒
+    5000,           // 5秒
+    10000,          // 10秒
+    30000,          // 30秒
+    60000,          // 1分钟
+    120000,         // 2分钟
+    300000,         // 5分钟
+    600000,         // 10分钟
+    900000,         // 15分钟
+    1800000,        // 30分钟
+    3600000,        // 1小时
+    7200000,        // 2小时
+    10800000,       // 3小时
+    21600000,       // 6小时
+    43200000,       // 12小时
+    86400000,       // 1天
+    172800000,      // 2天
+    432000000,      // 5天
+    604800000,      // 7天
+  ];
+  
+  // 选择合适的步长
+  let step = timeSteps[timeSteps.length - 1];
+  for (const s of timeSteps) {
+    if (s >= roughStep) {
+      step = s;
+      break;
+    }
+  }
+  
+  // 生成中间刻度
+  const ticks: number[] = [min]; // 始终包含起始时间
+  const tickStart = Math.ceil(min / step) * step;
+  const tickEnd = Math.floor(max / step) * step;
+  
+  for (let v = tickStart; v <= tickEnd && ticks.length < 200; v += step) {
+    // 避免与起始时间太接近（小于5%的范围）
+    if (Math.abs(v - min) > range * 0.05 && Math.abs(v - max) > range * 0.05) {
+      ticks.push(Number(v.toFixed(0)));
+    }
+  }
+  
+  // 始终包含结束时间
+  ticks.push(max);
+  
   return ticks;
 }
 
@@ -475,6 +534,12 @@ export default function ExplorePage() {
     if (!domain) return undefined;
     return computeNiceTicks(domain);
   }, [smoothYDomain, activeDomain?.y]);
+
+  // 计算 X 轴时间刻度，确保边界刻度正确显示
+  const computedXTicks = useMemo(() => {
+    if (!activeDomain?.x) return undefined;
+    return computeTimeTicks(activeDomain.x);
+  }, [activeDomain?.x]);
 
   // 计算 Y 轴分布（token 数量的直方图数据）
   const yDistribution = useMemo(() => {
@@ -1292,6 +1357,8 @@ export default function ExplorePage() {
                       fontSize={13}
                       allowDataOverflow
                       axisLine={false}
+                      ticks={computedXTicks}
+                      interval="preserveStartEnd"
                     />
                     <YAxis
                       yAxisId="left"
