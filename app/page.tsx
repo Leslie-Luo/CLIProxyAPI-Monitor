@@ -132,6 +132,12 @@ export default function DashboardPage() {
     const saved = window.localStorage.getItem("lastSyncTime");
     return saved ? new Date(saved) : null;
   });
+  const [lastInsertedDelta, setLastInsertedDelta] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const saved = window.localStorage.getItem("lastInsertedDelta");
+    const parsed = saved ? Number.parseInt(saved, 10) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [ready, setReady] = useState(false);
   const [pieMode, setPieMode] = useState<"tokens" | "requests">("tokens");
@@ -381,6 +387,14 @@ export default function DashboardPage() {
         if (typeof window !== "undefined") {
           window.localStorage.setItem("lastSyncTime", now.toISOString());
         }
+        setLastInsertedDelta((prev) => {
+          const safePrev = Number.isFinite(prev) ? prev : 0;
+          const next = inserted > 0 ? inserted : safePrev;
+          if ((inserted > 0 || !Number.isFinite(prev)) && typeof window !== "undefined") {
+            window.localStorage.setItem("lastInsertedDelta", String(next));
+          }
+          return next;
+        });
         // 手动同步时总是显示消息，自动同步时仅在有数据时显示
         const shouldShowMessage = showMessage || inserted > 0;
         if (shouldShowMessage) {
@@ -848,7 +862,14 @@ export default function DashboardPage() {
             {/* 请求数 */}
             <div className={`rounded-2xl p-5 shadow-sm ring-1 transition-all duration-200 ${darkMode ? "bg-slate-800/50 ring-slate-700 hover:shadow-lg hover:shadow-slate-700/30 hover:ring-slate-600" : "bg-white ring-slate-200 hover:shadow-lg hover:ring-slate-300"}`}>
               <div className={`text-sm uppercase tracking-wide ${darkMode ? "text-slate-400" : "text-slate-500"}`}>请求数</div>
-              <div className={`mt-3 text-2xl font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumberWithCommas(overviewData.totalRequests)}</div>
+              <div className={`mt-3 text-2xl font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>
+                {formatNumberWithCommas(overviewData.totalRequests)}
+                {lastInsertedDelta > 0 ? (
+                  <span className={`ml-2 text-lg font-normal ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                    (+{formatCompactNumber(lastInsertedDelta)})
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-2 text-sm">
                 <span className="text-emerald-400">✓ {formatCompactNumber(overviewData.successCount)}</span>
                 <span className={`mx-2 ${darkMode ? "text-slate-500" : "text-slate-400"}`}>|</span>

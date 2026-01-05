@@ -18,10 +18,16 @@ export function formatNumberWithCommas(value: number) {
 // 简化大数：1000 -> 1k, 1000000 -> 1M
 export function formatCompactNumber(value: number) {
   if (value >= 1_000_000) {
-    return (value / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    const scaledTimesTen = Math.floor((value * 10) / 1_000_000);
+    const scaled = scaledTimesTen / 10;
+    const formatted = Number.isInteger(scaled) ? scaled.toFixed(0) : scaled.toFixed(1);
+    return formatted + 'M';
   }
   if (value >= 1_000) {
-    return (value / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+    const scaledTimesTen = Math.floor((value * 10) / 1_000);
+    const scaled = scaledTimesTen / 10;
+    const formatted = Number.isInteger(scaled) ? scaled.toFixed(0) : scaled.toFixed(1);
+    return formatted + 'k';
   }
   return value.toString();
 }
