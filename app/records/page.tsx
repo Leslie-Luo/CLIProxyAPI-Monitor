@@ -539,7 +539,7 @@ export default function RecordsPage() {
 
       <section className={`mt-5 rounded-2xl bg-slate-800/40 p-4 shadow-sm ring-1 ring-slate-700 ${loadingEmpty ? "min-h-[100vh]" : ""}`}>
         <div className="overflow-auto">
-          <table className="min-w-[1200px] w-full table-fixed border-separate border-spacing-y-2">
+          <table className="min-w-[1200px] w-[99%] mx-auto table-fixed border-separate border-spacing-y-2">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs uppercase tracking-wider text-slate-400">
                 <th className="px-3 py-2 w-40">
@@ -628,53 +628,53 @@ export default function RecordsPage() {
               {records.map((row) => (
                 <tr
                   key={row.id}
-                  className="rounded-xl bg-slate-900/70 text-slate-100 shadow-sm ring-1 ring-slate-800 transition hover:ring-indigo-500/40"
+                  className="rounded-lg bg-slate-900/70 text-slate-100 shadow-sm ring-1 ring-slate-800 transition hover:ring-2 hover:ring-indigo-400/60 hover:shadow-[0_0_12px_rgba(99,102,241,0.35)] h-13"
                 >
-                  <td className="px-3 py-3 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap first:rounded-l-lg last:rounded-r-lg">
                     <div className="text-sm font-semibold text-white">{formatTimestamp(row.occurredAt)}</div>
-                    <div className="mt-1 text-xs text-slate-500">ID #{row.id}</div>
+                    {/* <div className="mt-1 text-xs text-slate-500">ID #{row.id}</div> */}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 first:rounded-l-lg last:rounded-r-lg">
                     <div className="max-w-[220px] truncate font-semibold text-white" title={row.model}>
                       {row.model}
                     </div>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 first:rounded-l-lg last:rounded-r-lg">
                     <div className="max-w-[200px] truncate text-slate-300" title={row.route}>
                       {row.route}
                     </div>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 first:rounded-l-lg last:rounded-r-lg">
                     <span className="rounded-full bg-indigo-500/20 px-2.5 py-1 text-xs font-semibold text-indigo-200 ring-1 ring-indigo-500/30">
                       {formatNumberWithCommas(row.totalTokens)}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-sm">
+                  <td className="px-3 py-3 text-sm first:rounded-l-lg last:rounded-r-lg">
                     <span className="font-medium" style={{ color: TOKEN_COLORS.input }}>
                       {formatNumberWithCommas(row.inputTokens)}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-sm">
+                  <td className="px-3 py-3 text-sm first:rounded-l-lg last:rounded-r-lg">
                     <span className="font-medium" style={{ color: TOKEN_COLORS.output }}>
                       {formatNumberWithCommas(row.outputTokens)}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-sm">
+                  <td className="px-3 py-3 text-sm first:rounded-l-lg last:rounded-r-lg">
                     <span className="font-medium" style={{ color: TOKEN_COLORS.reasoning }}>
                       {formatNumberWithCommas(row.reasoningTokens)}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-sm">
+                  <td className="px-3 py-3 text-sm first:rounded-l-lg last:rounded-r-lg">
                     <span className="font-medium" style={{ color: TOKEN_COLORS.cached }}>
                       {formatNumberWithCommas(row.cachedTokens)}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 first:rounded-l-lg last:rounded-r-lg">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${costTone(row.cost)}`}>
                       {formatCost(row.cost)}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 first:rounded-l-lg last:rounded-r-lg">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(row.isError)}`}>
                       {row.isError ? "异常" : "成功"}
                     </span>
