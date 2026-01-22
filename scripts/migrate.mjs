@@ -42,12 +42,12 @@ async function runMigrations() {
     );
 
     // 如果表已存在但无迁移记录，手动插入
-    if (existingMigrations.rowCount === 0) {
+    if (existingMigrations.rows.length === 0) {
       const tableExists = await pool.query(
-        "SELECT to_regclass('public.model_prices') as exists"
+        "SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = 'model_prices' AND c.relkind IN ('r','p') LIMIT 1"
       );
       
-      if (tableExists.rows[0]?.exists) {
+      if (tableExists.rows.length > 0) {
         console.log("检测到表已存在，标记迁移为已执行...");
         const migrationMeta = getMigrationMeta("./drizzle").filter((meta) =>
           meta.tag.startsWith("0000_")
