@@ -36,39 +36,32 @@ async function runMigrations() {
       "CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash TEXT NOT NULL, created_at BIGINT)"
     );
 
-    // 检查是否已有迁移记录
+    // 获取本地所有迁移元数据
+    const allMigrations = getMigrationMeta("./drizzle");
+    
+    // 检查数据库中已有的迁移记录
     const existingMigrations = await pool.query(
-      "SELECT id FROM drizzle.__drizzle_migrations LIMIT 1"
+      "SELECT hash, created_at FROM drizzle.__drizzle_migrations"
+    );
+    const existingHashes = new Set(existingMigrations.rows.map((r) => r.hash));
+
+    // 检查 model_prices 表是否存在
+    const tableExists = await pool.query(
+      "SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = 'model_prices' AND c.relkind IN ('r','p') LIMIT 1"
     );
 
-    // 如果表已存在但无迁移记录，手动插入
-    if (existingMigrations.rows.length === 0) {
-      const tableExists = await pool.query(
-        "SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = 'model_prices' AND c.relkind IN ('r','p') LIMIT 1"
-      );
+    // 如果表已存在，需要确保对应的迁移已标记
+    if (tableExists.rows.length > 0) {
+      // 找出 0000 迁移
+      const initialMigration = allMigrations.find((m) => m.tag.startsWith("0000_"));
       
-      if (tableExists.rows.length > 0) {
-        console.log("检测到表已存在，标记迁移为已执行...");
-        const migrationMeta = getMigrationMeta("./drizzle").filter((meta) =>
-          meta.tag.startsWith("0000_")
+      if (initialMigration && !existingHashes.has(initialMigration.hash)) {
+        console.log("检测到表已存在但迁移未标记，正在标记...");
+        await pool.query(
+          "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)",
+          [initialMigration.hash, initialMigration.createdAt]
         );
-        if (migrationMeta.length > 0) {
-          const values = [];
-          const params = [];
-          let paramIndex = 1;
-
-          for (const meta of migrationMeta) {
-            values.push(`($${paramIndex++}, $${paramIndex++})`);
-            params.push(meta.hash, meta.createdAt);
-          }
-
-          await pool.query(
-            `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ${values.join(", ")}`,
-            params
-          );
-        }
-        console.log("✓ 已标记现有迁移");
-        process.exit(0);
+        console.log("✓ 已标记 0000 迁移");
       }
     }
 
