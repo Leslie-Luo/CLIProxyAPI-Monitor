@@ -66,6 +66,8 @@ function formatTimestamp(ts: string) {
 }
 
 function formatCost(value: number) {
+  // 0 值显示为 $0，非0值保留5位小数
+  if (value === 0) return "$0";
   return `$${value.toFixed(5)}`;
 }
 
