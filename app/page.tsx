@@ -2572,7 +2572,7 @@ export default function DashboardPage() {
       {saveStatus && (
         <div
           onClick={() => closeSaveStatus()}
-          className={`fixed right-6 top-24 z-50 max-w-[290px] cursor-pointer rounded-lg border px-4 py-3 shadow-lg transition-opacity hover:opacity-90 ${
+          className={`fixed right-6 top-36 z-50 max-w-[290px] cursor-pointer rounded-lg border px-4 py-3 shadow-lg transition-opacity hover:opacity-90 ${
             saveStatusClosing ? "animate-toast-out" : "animate-toast-in"
           } ${
             darkMode
@@ -2590,7 +2590,7 @@ export default function DashboardPage() {
       {pricesSyncStatus.type !== 'idle' && (
         <div
           onClick={() => setPricesSyncStatus({ type: 'idle' })}
-          className={`fixed right-6 top-40 z-50 max-w-[340px] cursor-pointer rounded-lg border px-4 py-3 shadow-lg transition-opacity hover:opacity-90 animate-toast-in ${
+          className={`fixed right-6 top-48 z-50 max-w-[340px] cursor-pointer rounded-lg border px-4 py-3 shadow-lg transition-opacity hover:opacity-90 animate-toast-in ${
             pricesSyncStatus.type === 'error'
               ? darkMode
                 ? "border-rose-500/30 bg-rose-950/60 text-rose-200"
