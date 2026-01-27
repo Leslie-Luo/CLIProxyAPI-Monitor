@@ -8,6 +8,13 @@ import { AlertTriangle, Info, LucideIcon, Activity, Save, RefreshCw, Moon, Sun, 
 import type { ModelPrice, UsageOverview, UsageSeriesPoint } from "@/lib/types";
 import { Modal } from "@/app/components/Modal";
 
+// 同步状态类型定义
+type SyncStatus = 
+  | { type: 'idle' }
+  | { type: 'syncing'; message?: string }
+  | { type: 'success'; message: string; summary?: { total: number; updated: number; skipped: number; failed: number } }
+  | { type: 'error'; message: string };
+
 // 饼图颜色
 const PIE_COLORS = [
   "#60a5fa", "#4ade80", "#fbbf24", "#c084fc", "#f472b6", "#38bdf8", "#a3e635", "#fb923c",
@@ -196,7 +203,7 @@ export default function DashboardPage() {
   const syncingRef = useRef(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [syncingPrices, setSyncingPrices] = useState(false);
-  const [pricesSyncStatus, setPricesSyncStatus] = useState<string | null>(null);
+  const [pricesSyncStatus, setPricesSyncStatus] = useState<SyncStatus>({ type: 'idle' });
   const pricesSyncStatusTimerRef = useRef<number | null>(null);
   const [pricesSyncModalOpen, setPricesSyncModalOpen] = useState(false);
   const [pricesSyncData, setPricesSyncData] = useState<{
@@ -525,7 +532,7 @@ export default function DashboardPage() {
     if (syncingPrices) return;
 
     setSyncingPrices(true);
-    setPricesSyncStatus(null);
+    setPricesSyncStatus({ type: 'syncing' });
     setPricesSyncData(null);
     setPricesSyncModalOpen(true);
 
@@ -540,19 +547,29 @@ export default function DashboardPage() {
       setPricesSyncData(data);
       
       if (!res.ok) {
-        setPricesSyncStatus(`价格同步失败: ${data.error || res.statusText}`);
+        setPricesSyncStatus({ 
+          type: 'error', 
+          message: `价格同步失败: ${data.error || res.statusText}` 
+        });
       } else {
         const { summary } = data;
-        setPricesSyncStatus(`已更新 ${summary.updated} 个模型价格，跳过 ${summary.skipped} 个，失败 ${summary.failed} 个`);
+        setPricesSyncStatus({ 
+          type: 'success', 
+          message: `已更新 ${summary.updated} 个模型价格，跳过 ${summary.skipped} 个，失败 ${summary.failed} 个`,
+          summary: summary
+        });
       }
     } catch (err) {
       const errorMsg = (err as Error).message;
-      setPricesSyncStatus(`价格同步失败: ${errorMsg}`);
+      setPricesSyncStatus({ 
+        type: 'error', 
+        message: `价格同步失败: ${errorMsg}` 
+      });
       setPricesSyncData({ error: errorMsg });
     } finally {
       setSyncingPrices(false);
       if (pricesSyncStatusTimerRef.current) clearTimeout(pricesSyncStatusTimerRef.current);
-      pricesSyncStatusTimerRef.current = window.setTimeout(() => setPricesSyncStatus(null), 8000);
+      pricesSyncStatusTimerRef.current = window.setTimeout(() => setPricesSyncStatus({ type: 'idle' }), 8000);
     }
   }, [syncingPrices]);
 
@@ -2529,11 +2546,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {pricesSyncStatus && (
+      {pricesSyncStatus.type !== 'idle' && (
         <div
-          onClick={() => setPricesSyncStatus(null)}
+          onClick={() => setPricesSyncStatus({ type: 'idle' })}
           className={`fixed right-6 top-40 z-50 max-w-[340px] cursor-pointer rounded-lg border px-4 py-3 shadow-lg transition-opacity hover:opacity-90 animate-toast-in ${
-            pricesSyncStatus.includes("失败") || pricesSyncStatus.includes("请先")
+            pricesSyncStatus.type === 'error'
               ? darkMode
                 ? "border-rose-500/30 bg-rose-950/60 text-rose-200"
                 : "border-rose-300 bg-rose-50 text-rose-800"
@@ -2544,9 +2561,14 @@ export default function DashboardPage() {
         >
           <div className="flex items-center gap-2.5">
             <span className="text-xl animate-emoji-pop">
-              {pricesSyncStatus.includes("失败") || pricesSyncStatus.includes("请先") ? "💰" : "✅"}
+              {pricesSyncStatus.type === 'error' ? "💰" : pricesSyncStatus.type === 'syncing' ? "⏳" : "✅"}
             </span>
-            <span className="text-sm font-medium">{pricesSyncStatus}</span>
+            <span className="text-sm font-medium">
+              {pricesSyncStatus.type === 'syncing' 
+                ? (pricesSyncStatus.message || '正在同步...') 
+                : pricesSyncStatus.message
+              }
+            </span>
           </div>
         </div>
       )}
