@@ -17,6 +17,7 @@ type ExplorePoint = {
 type ExploreResponse = {
   days: number;
   total: number;
+  zeroTokensCount?: number;
   returned: number;
   step: number;
   points: ExplorePoint[];
@@ -457,8 +458,18 @@ export default function ExplorePage() {
   const [showStackedArea, setShowStackedArea] = useState(true);
   // 散点显示开关
   const [showScatter, setShowScatter] = useState(true);
+  // 过滤无效点（tokens=0）开关，默认不过滤，从 localStorage 恢复
+  const [filterInvalidPoints, setFilterInvalidPoints] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('exploreFilterInvalidPoints') === 'true';
+  });
   
   const scatterTooltipRef = useRef<ScatterTooltipHandle>(null);
+
+  // 持久化过滤无效点开关状态
+  useEffect(() => {
+    window.localStorage.setItem('exploreFilterInvalidPoints', String(filterInvalidPoints));
+  }, [filterInvalidPoints]);
 
   // 持久化本页自定义选择，不回写仪表盘
   useEffect(() => {
@@ -572,14 +583,7 @@ export default function ExplorePage() {
   );
   ScatterTooltip.displayName = "ScatterTooltip";
 
-  const points = useMemo(() => {
-    const pts = data?.points ?? [];
-    // 总点数超过 3000 时，过滤掉 tokens 为 0 的点，减少噪点渲染
-    if ((data?.total ?? 0) > 3000) {
-      return pts.filter(p => p.tokens !== 0);
-    }
-    return pts;
-  }, [data]);
+  const points = useMemo(() => data?.points ?? [], [data]);
 
   // brush 选择区域状态
   const brushStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -1190,6 +1194,7 @@ export default function ExplorePage() {
         }
         if (appliedRoute) params.set("route", appliedRoute);
         if (appliedName) params.set("name", appliedName);
+        if (!filterInvalidPoints) params.set("filterInvalid", "0");
 
         const res = await fetch(`/api/explore?${params.toString()}`, { cache: "no-store" });
         const json: ExploreResponse = await res.json();
@@ -1218,7 +1223,7 @@ export default function ExplorePage() {
     return () => {
       cancelled = true;
     };
-  }, [rangeMode, customStart, customEnd, rangeDays, appliedRoute, appliedName]);
+  }, [rangeMode, customStart, customEnd, rangeDays, appliedRoute, appliedName, filterInvalidPoints]);
 
   const models = useMemo(() => {
     const set = new Set<string>();
@@ -1644,12 +1649,17 @@ export default function ExplorePage() {
           <div>
             <span className="text-slate-400">渲染点数：</span>
             <span>{formatNumberWithCommas(visiblePoints.length)}</span>
-            {(data?.total ?? 0) > 3000 && (() => {
-              const filtered = (data?.returned ?? 0) - points.length;
-              return filtered > 0 ? (
-                <span className="ml-1 text-slate-500">（已过滤 {formatNumberWithCommas(filtered)} 无效点）</span>
-              ) : null;
-            })()}
+            {(data?.zeroTokensCount ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterInvalidPoints(v => !v)}
+                className="ml-1 cursor-pointer text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {filterInvalidPoints
+                  ? `（已过滤 ${formatNumberWithCommas(data!.zeroTokensCount!)} 无效点）`
+                  : '（过滤无效点？）'}
+              </button>
+            )}
           </div>
           {zoomDomain && dataBounds && (() => {
             const totalXRange = dataBounds.x[1] - dataBounds.x[0];

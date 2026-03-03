@@ -40,7 +40,7 @@ function withDayEnd(date: Date) {
 }
 
 function normalizeMaxPoints(value?: number | null) {
-  const fallback = 20_000;
+  const fallback = 50_000;
   if (value == null || Number.isNaN(value)) return fallback;
   return Math.min(Math.max(Math.floor(value), 1_000), 100_000);
 }
@@ -53,6 +53,7 @@ export async function getExplorePoints(
     end?: string | Date | null;
     route?: string | null;
     name?: string | null;
+    filterInvalid?: boolean;
   }
 ) {
   const startDate = parseDateInput(opts?.start);
@@ -82,6 +83,7 @@ export async function getExplorePoints(
   }
   const where = and(...whereParts);
   const baseWhere = and(...baseWhereParts);
+  const shouldFilterInvalid = opts?.filterInvalid !== false;
 
   const credentialNameExpr = sql<string>`coalesce(
     nullif((select af.name from auth_file_mappings af where af.auth_id = ${usageRecords.authIndex} limit 1), ''),
@@ -89,7 +91,10 @@ export async function getExplorePoints(
     '-'
   )`;
 
-  const [totalRows, availableRouteRows, availableNameRows]: [
+  const zeroTokensWhere = and(...whereParts, sql`${usageRecords.totalTokens} = 0`);
+
+  const [totalRows, zeroTokensRows, availableRouteRows, availableNameRows]: [
+    Array<{ count: number }>,
     Array<{ count: number }>,
     Array<{ route: string }>,
     Array<{ name: string }>
@@ -98,6 +103,10 @@ export async function getExplorePoints(
       .select({ count: sql<number>`count(*)` })
       .from(usageRecords)
       .where(where),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(usageRecords)
+      .where(zeroTokensWhere),
     db
       .select({ route: usageRecords.route })
       .from(usageRecords)
@@ -115,50 +124,39 @@ export async function getExplorePoints(
   ]);
 
   const total = Number(totalRows?.[0]?.count ?? 0);
+  const zeroTokensCount = Number(zeroTokensRows?.[0]?.count ?? 0);
   const filters = {
     routes: availableRouteRows.map((row) => row.route).filter(Boolean),
     names: availableNameRows.map((row) => row.name).filter((name): name is string => Boolean(name) && name !== "-")
   };
 
   if (total <= 0) {
-    return { days, total: 0, returned: 0, step: 1, points: [] as ExplorePoint[], filters };
+    return { days, total: 0, zeroTokensCount: 0, returned: 0, step: 1, points: [] as ExplorePoint[], filters };
   }
 
-  const step = total > maxPoints ? Math.ceil(total / maxPoints) : 1;
+  const step = 1;
 
-  // Use row_number() sampling for stable, time-ordered down-sampling.
+  // 直接按时间排序查询，不再使用 row_number() 抽样；默认在 SQL 层过滤 tokens=0 的无效点
+  const pointsWhere = shouldFilterInvalid ? and(...whereParts, sql`${usageRecords.totalTokens} != 0`) : where;
   const points: Array<{ ts: number; tokens: number; inputTokens: number; outputTokens: number; reasoningTokens: number; cachedTokens: number; model: string }> = await db
     .select({
-      ts: sql<number>`(extract(epoch from sampled.occurred_at) * 1000)::bigint`,
-      tokens: sql<number>`sampled.total_tokens`,
-      inputTokens: sql<number>`sampled.input_tokens`,
-      outputTokens: sql<number>`sampled.output_tokens`,
-      reasoningTokens: sql<number>`sampled.reasoning_tokens`,
-      cachedTokens: sql<number>`sampled.cached_tokens`,
-      model: sql<string>`sampled.model`
+      ts: sql<number>`(extract(epoch from ${usageRecords.occurredAt}) * 1000)::bigint`,
+      tokens: sql<number>`${usageRecords.totalTokens}`,
+      inputTokens: sql<number>`${usageRecords.inputTokens}`,
+      outputTokens: sql<number>`${usageRecords.outputTokens}`,
+      reasoningTokens: sql<number>`${usageRecords.reasoningTokens}`,
+      cachedTokens: sql<number>`${usageRecords.cachedTokens}`,
+      model: sql<string>`${usageRecords.model}`
     })
-    .from(
-      sql`(
-        select
-          ${usageRecords.occurredAt} as occurred_at,
-          ${usageRecords.totalTokens} as total_tokens,
-          ${usageRecords.inputTokens} as input_tokens,
-          ${usageRecords.outputTokens} as output_tokens,
-          ${usageRecords.reasoningTokens} as reasoning_tokens,
-          ${usageRecords.cachedTokens} as cached_tokens,
-          ${usageRecords.model} as model,
-          row_number() over (order by ${usageRecords.occurredAt}) as rn
-        from ${usageRecords}
-        where ${where}
-      ) as sampled`
-    )
-    .where(sql`(sampled.rn - 1) % ${step} = 0`)
-    .orderBy(sql`sampled.occurred_at`)
+    .from(usageRecords)
+    .where(pointsWhere)
+    .orderBy(usageRecords.occurredAt)
     .limit(maxPoints);
 
   return {
     days,
     total,
+    zeroTokensCount,
     returned: points.length,
     step,
     filters,
