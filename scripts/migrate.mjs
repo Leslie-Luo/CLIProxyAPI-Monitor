@@ -10,11 +10,52 @@ const useNeon =
   (process.env.DATABASE_DRIVER !== "pg" &&
     /\.neon\.tech/.test(connectionString));
 
+const PG_SSL_QUERY_KEYS = [
+  "ssl",
+  "sslmode",
+  "sslcert",
+  "sslkey",
+  "sslrootcert",
+  "sslpassword",
+  "sslaccept",
+  "uselibpqcompat"
+];
+
+function normalizeEnvMultiline(value) {
+  let normalized = value.trim();
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1);
+  }
+  return normalized.replace(/\\n/g, "\n");
+}
+
+function stripPgSslParams(urlString) {
+  try {
+    const url = new URL(urlString);
+    for (const key of PG_SSL_QUERY_KEYS) {
+      url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch {
+    return urlString;
+  }
+}
+
 // SSL 配置：DATABASE_CA 支持原始 PEM 或 Base64 编码
 function getSSLOptions() {
   const ca = process.env.DATABASE_CA;
   if (!ca) return undefined;
-  const pem = ca.startsWith("-----BEGIN") ? ca : Buffer.from(ca, "base64").toString("utf8");
+
+  const normalized = normalizeEnvMultiline(ca);
+  if (normalized.includes("-----BEGIN CERTIFICATE-----")) {
+    return { ca: normalized, rejectUnauthorized: true };
+  }
+
+  const decoded = Buffer.from(normalized, "base64").toString("utf8").trim();
+  const pem = normalizeEnvMultiline(decoded);
   return { ca: pem, rejectUnauthorized: true };
 }
 
@@ -32,7 +73,14 @@ async function createMigrateContext() {
     const pg = await import("pg");
     const { drizzle } = await import("drizzle-orm/node-postgres");
     const { migrate } = await import("drizzle-orm/node-postgres/migrator");
-    const pool = new pg.default.Pool({ connectionString, ssl: getSSLOptions() });
+    const sslOptions = getSSLOptions();
+    const pgConnectionString = sslOptions
+      ? stripPgSslParams(connectionString)
+      : connectionString;
+    const pool = new pg.default.Pool({
+      connectionString: pgConnectionString,
+      ssl: sslOptions
+    });
     const db = drizzle(pool);
     return { pool, db, migrate };
   }

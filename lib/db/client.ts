@@ -17,6 +17,40 @@ const useNeon =
   (process.env.DATABASE_DRIVER !== "pg" &&
     /\.neon\.tech/.test(connectionString));
 
+const PG_SSL_QUERY_KEYS = [
+  "ssl",
+  "sslmode",
+  "sslcert",
+  "sslkey",
+  "sslrootcert",
+  "sslpassword",
+  "sslaccept",
+  "uselibpqcompat"
+];
+
+function normalizeEnvMultiline(value: string): string {
+  let normalized = value.trim();
+  if (
+    (normalized.startsWith("\"") && normalized.endsWith("\"")) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1);
+  }
+  return normalized.replace(/\\n/g, "\n");
+}
+
+function stripPgSslParams(urlString: string): string {
+  try {
+    const url = new URL(urlString);
+    for (const key of PG_SSL_QUERY_KEYS) {
+      url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch {
+    return urlString;
+  }
+}
+
 /**
  * SSL 配置（仅对 pg 驱动生效）：
  *   DATABASE_CA  → CA 证书 PEM 内容（原始 PEM 或 Base64 编码均可）
@@ -25,8 +59,17 @@ const useNeon =
 function getSSLOptions(): object | undefined {
   const ca = process.env.DATABASE_CA;
   if (!ca) return undefined;
-  // 支持原始 PEM（-----BEGIN...）和 Base64 编码
-  const pem = ca.startsWith("-----BEGIN") ? ca : Buffer.from(ca, "base64").toString("utf8");
+
+  const normalized = normalizeEnvMultiline(ca);
+
+  // 支持原始 PEM（含真实换行或 \n）
+  if (normalized.includes("-----BEGIN CERTIFICATE-----")) {
+    return { ca: normalized, rejectUnauthorized: true };
+  }
+
+  // 支持 Base64 编码 PEM
+  const decoded = Buffer.from(normalized, "base64").toString("utf8").trim();
+  const pem = normalizeEnvMultiline(decoded);
   return { ca: pem, rejectUnauthorized: true };
 }
 
@@ -35,7 +78,14 @@ function createDb() {
     neonConfig.webSocketConstructor = WebSocket;
     return neonDrizzle(new NeonPool({ connectionString }));
   }
-  return pgDrizzle(new PgPool({ connectionString, ssl: getSSLOptions() }));
+  const sslOptions = getSSLOptions();
+  const pgConnectionString = sslOptions
+    ? stripPgSslParams(connectionString)
+    : connectionString;
+
+  return pgDrizzle(
+    new PgPool({ connectionString: pgConnectionString, ssl: sslOptions })
+  );
 }
 
 export const db = createDb();
