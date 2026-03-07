@@ -837,9 +837,14 @@ export default function DashboardPage() {
   
   const hourlySeries = useMemo(() => {
     if (!overviewData?.byHour) return [] as UsageSeriesPoint[];
-    if (hourRange === "all") return overviewData.byHour;
-    const hours = hourRange === "24h" ? 24 : 72;
-    return buildHourlySeries(overviewData.byHour, hours, bucketTimezone);
+    const raw = hourRange === "all"
+      ? overviewData.byHour
+      : buildHourlySeries(overviewData.byHour, hourRange === "24h" ? 24 : 72, bucketTimezone);
+    // 输入仅计未命中缓存部分，避免与缓存字段在堆叠图中重复计数
+    return raw.map(p => ({
+      ...p,
+      inputTokens: Math.max(0, (p.inputTokens ?? 0) - (p.cachedTokens ?? 0))
+    }));
   }, [hourRange, overviewData?.byHour, bucketTimezone]);
 
   const hourlyLineStyle = useMemo(
@@ -1556,9 +1561,17 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className={darkMode ? "text-slate-400" : "text-slate-500"}>输入</span>
-                  <span className="font-medium" style={{ color: darkMode ? "#fb7185" : "#e11d48" }}>{formatNumberWithCommas(overviewData.totalInputTokens)}</span>
+                <div className="flex items-center justify-between group cursor-default">
+                  <span className={`relative ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                    <span className="transition-opacity duration-200 group-hover:opacity-0 select-none">输入</span>
+                    <span className="absolute left-0 top-0 whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">未命中输入</span>
+                  </span>
+                  <span className="relative font-medium" style={{ color: darkMode ? "#fb7185" : "#e11d48" }}>
+                    <span className="transition-opacity duration-200 group-hover:opacity-0 select-none">{formatNumberWithCommas(overviewData.totalInputTokens)}</span>
+                    <span className="absolute right-0 top-0 whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                      {formatNumberWithCommas(Math.max(0, overviewData.totalInputTokens - overviewData.totalCachedTokens))}
+                    </span>
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={darkMode ? "text-slate-400" : "text-slate-500"}>输出</span>
@@ -1568,9 +1581,21 @@ export default function DashboardPage() {
                   <span className={darkMode ? "text-slate-400" : "text-slate-500"}>思考</span>
                   <span className="font-medium" style={{ color: darkMode ? "#fbbf24" : "#d97706" }}>{formatNumberWithCommas(overviewData.totalReasoningTokens)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className={darkMode ? "text-slate-400" : "text-slate-500"}>缓存</span>
-                  <span className="font-medium" style={{ color: darkMode ? "#c084fc" : "#9333ea" }}>{formatNumberWithCommas(overviewData.totalCachedTokens)}</span>
+                <div className="flex items-center justify-between group cursor-default">
+                  <span className={`relative ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                    <span className="transition-opacity duration-200 group-hover:opacity-0 select-none">缓存命中率</span>
+                    <span className="absolute left-0 top-0 whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">缓存</span>
+                  </span>
+                  <span className="relative font-medium" style={{ color: darkMode ? "#c084fc" : "#9333ea" }}>
+                    <span className="transition-opacity duration-200 group-hover:opacity-0 select-none">
+                      {overviewData.totalInputTokens > 0
+                        ? `${((overviewData.totalCachedTokens / overviewData.totalInputTokens) * 100).toFixed(2)}%`
+                        : "0.00%"}
+                    </span>
+                    <span className="absolute right-0 top-0 whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                      {formatNumberWithCommas(overviewData.totalCachedTokens)}
+                    </span>
+                  </span>
                 </div>
               </div>
             </div>
@@ -2065,9 +2090,9 @@ export default function DashboardPage() {
                   />
                   {/* 堆积柱状图 - 柔和配色，仅顶部圆角，增强动画 */}
                   <Bar hide={!hourlyVisible.inputTokens} yAxisId="right" dataKey="inputTokens" name="输入" stackId="tokens" fill="url(#gradInput)" fillOpacity={0.8} animationDuration={600} barSize={24} />
+                  <Bar hide={!hourlyVisible.cachedTokens} yAxisId="right" dataKey="cachedTokens" name="缓存" stackId="tokens" fill="url(#gradCached)" fillOpacity={0.8} animationDuration={600} barSize={24} />
                   <Bar hide={!hourlyVisible.outputTokens} yAxisId="right" dataKey="outputTokens" name="输出" stackId="tokens" fill="url(#gradOutput)" fillOpacity={0.8} animationDuration={600} barSize={24} />
-                  <Bar hide={!hourlyVisible.reasoningTokens} yAxisId="right" dataKey="reasoningTokens" name="思考" stackId="tokens" fill="url(#gradReasoning)" fillOpacity={0.8} animationDuration={600} barSize={24} />
-                  <Bar hide={!hourlyVisible.cachedTokens} yAxisId="right" dataKey="cachedTokens" name="缓存" stackId="tokens" fill="url(#gradCached)" fillOpacity={0.8} radius={[4, 4, 0, 0]} animationDuration={600} barSize={24} />
+                  <Bar hide={!hourlyVisible.reasoningTokens} yAxisId="right" dataKey="reasoningTokens" name="思考" stackId="tokens" fill="url(#gradReasoning)" fillOpacity={0.8} radius={[4, 4, 0, 0]} animationDuration={600} barSize={24} />
                   {/* 曲线在最上层 - 带描边突出显示 */}
                   <Line 
                     hide={!hourlyVisible.requests}
@@ -2772,9 +2797,9 @@ export default function DashboardPage() {
                       const keyMap: Record<string, string> = {
                         "请求数": "requests",
                         "输入": "inputTokens",
+                        "缓存": "cachedTokens",
                         "输出": "outputTokens",
-                        "思考": "reasoningTokens",
-                        "缓存": "cachedTokens"
+                        "思考": "reasoningTokens"
                       };
                       const key = keyMap[value];
                       const isVisible = hourlyVisible[key];
@@ -2786,9 +2811,9 @@ export default function DashboardPage() {
                       const colors: Record<string, string> = {
                         "请求数": darkMode ? "#60a5fa" : "#3b82f6",
                         "输入": darkMode ? "#fb7185" : "#e11d48",
+                        "缓存": darkMode ? "#c084fc" : "#9333ea",
                         "输出": darkMode ? "#4ade80" : "#16a34a",
-                        "思考": darkMode ? "#fbbf24" : "#d97706",
-                        "缓存": darkMode ? "#c084fc" : "#9333ea"
+                        "思考": darkMode ? "#fbbf24" : "#d97706"
                       };
                       return <span style={{ color: colors[value] || "inherit", fontWeight: 500 }} title="按住 Ctrl 点击可只显示该项">{value}</span>;
                     }}
@@ -2805,16 +2830,16 @@ export default function DashboardPage() {
                   {fullscreenHourlyMode === "area" ? (
                     <>
                       <Area hide={!hourlyVisible.inputTokens} yAxisId="right" dataKey="inputTokens" name="输入" stackId="tokens" type="monotone" stroke="#fca5a5" fill="url(#gradInputFS)" fillOpacity={0.35} animationDuration={600} />
+                      <Area hide={!hourlyVisible.cachedTokens} yAxisId="right" dataKey="cachedTokens" name="缓存" stackId="tokens" type="monotone" stroke="#c084fc" fill="url(#gradCachedFS)" fillOpacity={0.35} animationDuration={600} />
                       <Area hide={!hourlyVisible.outputTokens} yAxisId="right" dataKey="outputTokens" name="输出" stackId="tokens" type="monotone" stroke="#4ade80" fill="url(#gradOutputFS)" fillOpacity={0.35} animationDuration={600} />
                       <Area hide={!hourlyVisible.reasoningTokens} yAxisId="right" dataKey="reasoningTokens" name="思考" stackId="tokens" type="monotone" stroke="#fbbf24" fill="url(#gradReasoningFS)" fillOpacity={0.35} animationDuration={600} />
-                      <Area hide={!hourlyVisible.cachedTokens} yAxisId="right" dataKey="cachedTokens" name="缓存" stackId="tokens" type="monotone" stroke="#c084fc" fill="url(#gradCachedFS)" fillOpacity={0.35} animationDuration={600} />
                     </>
                   ) : (
                     <>
                       <Bar hide={!hourlyVisible.inputTokens} yAxisId="right" dataKey="inputTokens" name="输入" stackId="tokens" fill="url(#gradInputFS)" fillOpacity={0.8} animationDuration={600} barSize={32} />
-                      <Bar hide={!hourlyVisible.outputTokens} yAxisId="right" dataKey="outputTokens" name="输出" stackId="tokens" fill="url(#gradOutputFS)" fillOpacity={0.8} animationDuration={600} barSize={32} />
-                      <Bar hide={!hourlyVisible.reasoningTokens} yAxisId="right" dataKey="reasoningTokens" name="思考" stackId="tokens" fill="url(#gradReasoningFS)" fillOpacity={0.8} animationDuration={600} barSize={32} />
                       <Bar hide={!hourlyVisible.cachedTokens} yAxisId="right" dataKey="cachedTokens" name="缓存" stackId="tokens" fill="url(#gradCachedFS)" fillOpacity={0.8} animationDuration={600} barSize={32} />
+                      <Bar hide={!hourlyVisible.outputTokens} yAxisId="right" dataKey="outputTokens" name="输出" stackId="tokens" fill="url(#gradOutputFS)" fillOpacity={0.8} animationDuration={600} barSize={32} />
+                      <Bar hide={!hourlyVisible.reasoningTokens} yAxisId="right" dataKey="reasoningTokens" name="思考" stackId="tokens" fill="url(#gradReasoningFS)" fillOpacity={0.8} radius={[4, 4, 0, 0]} animationDuration={600} barSize={32} />
                     </>
                   )}
                   {/* 曲线在最上层 - 带描边突出显示 */}

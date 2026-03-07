@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-03-07
+
+- 修复每小时负载分布堆叠图中"输入"与"缓存"重复计数的问题：
+  - 原始数据中 `inputTokens` 包含缓存命中部分，与 `cachedTokens` 存在子集重叠，导致堆叠图双重计数。
+  - 在 `hourlySeries` useMemo 输出前对每个数据点执行 `inputTokens = Math.max(0, inputTokens - cachedTokens)`，使两者在图中不重叠。
+  - 调整普通图和全屏图的堆叠顺序为：输入 → 缓存 → 输出 → 思考，保持"输入"与"缓存"在视觉上相邻，语义更清晰。
+  - 同步更新两个图的 tooltip 排序、图例排序，以及顶层圆角（`radius` 移至新顶层的思考柱）。
+
+- Tokens 卡片"缓存"改为缓存命中率显示，"输入"增加 hover 展示未命中输入：
+  - "缓存"行：默认标签"缓存命中率"及百分比，hover 切换为"缓存"及实际 token 数。
+  - "输入"行：默认标签"输入"及总输入 token 数，hover 切换为"未命中输入"及 `totalInputTokens - totalCachedTokens`。
+  - 两行均使用相同的 opacity 过渡动画（duration-200），`absolute` 覆盖层不影响布局。
+
 ## 2026-03-06
 
 - 修复首页"无法加载实时用量："后内容为空的问题：
